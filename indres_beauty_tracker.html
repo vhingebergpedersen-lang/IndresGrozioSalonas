@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Indres Beauty Salon</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a2e; --cream: #faf8f4; --sage: #7a9e7e; --sage-light: #e8f0e9;
+    --terracotta: #c17f5a; --terracotta-light: #f5ede6; --border: #e0dbd4;
+    --muted: #8a8580; --white: #ffffff;
+    --shadow: 0 2px 16px rgba(26,26,46,0.08); --shadow-lg: 0 8px 32px rgba(26,26,46,0.14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; padding-bottom: 80px; }
+
+  .header { background: var(--ink); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-logo { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--cream); }
+  .header-logo span { color: var(--terracotta); }
+  .header-right { font-size: 11px; color: #8a9bb5; text-transform: uppercase; letter-spacing: 1.2px; }
+
+  .tabs { display: flex; background: var(--white); border-bottom: 1px solid var(--border); }
+  .tab { flex: 1; padding: 13px 8px; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; text-align: center; }
+  .tab.active { color: var(--ink); border-bottom-color: var(--terracotta); }
+
+  .page { display: none; padding: 16px 20px; max-width: 600px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  .section-title { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--ink); margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+
+  .card { background: var(--white); border-radius: 12px; padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+
+  .today-block { background: var(--ink); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .today-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #8a9bb5; margin-bottom: 3px; }
+  .today-date { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--cream); margin-bottom: 6px; }
+  .today-count { font-size: 13px; color: #a8bcd4; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+  .stat-card { background: var(--white); border-radius: 10px; padding: 12px 8px; text-align: center; border: 1px solid var(--border); }
+  .stat-number { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--ink); line-height: 1; }
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
+
+  .cust-card { background: var(--white); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); cursor: pointer; }
+  .cust-name { font-family: 'DM Serif Display', serif; font-size: 17px; }
+  .cust-meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  .bundle-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--sage-light); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 500; color: var(--sage); margin: 4px 4px 0 0; }
+  .bundle-chip.low { background: var(--terracotta-light); color: var(--terracotta); }
+  .bundle-chip.empty { background: #fde8e8; color: #c0392b; }
+
+  .prog-wrap { margin: 8px 0 4px; }
+  .prog-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .prog-bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .prog-fill { height: 100%; background: var(--sage); border-radius: 3px; transition: width 0.4s; }
+  .prog-fill.low { background: var(--terracotta); }
+  .prog-fill.empty { background: #c0392b; }
+
+  /* CALENDAR */
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-nav-btn { background: var(--white); border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--ink); }
+  .cal-date-display { font-family: 'DM Serif Display', serif; font-size: 16px; color: var(--ink); text-align: center; flex: 1; }
+  .cal-date-sub { font-size: 11px; color: var(--muted); text-align: center; }
+
+  .week-strip { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-bottom: 14px; }
+  .week-day { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; border-radius: 8px; cursor: pointer; }
+  .week-day.selected { background: var(--ink); }
+  .week-day.is-today { background: var(--sage-light); }
+  .week-day-label { font-size: 9px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .week-day.selected .week-day-label { color: #8a9bb5; }
+  .week-day-num { font-family: 'DM Serif Display', serif; font-size: 16px; color: var(--ink); line-height: 1; }
+  .week-day.selected .week-day-num { color: var(--white); }
+  .week-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--terracotta); margin-top: 3px; }
+  .week-day.selected .week-dot { background: #f0a87e; }
+  .no-dot { height: 7px; }
+
+  .time-slot { display: flex; align-items: flex-start; margin-bottom: 5px; }
+  .time-label { width: 46px; font-size: 11px; color: var(--muted); padding-top: 10px; flex-shrink: 0; }
+  .slot-content { flex: 1; min-height: 38px; border-radius: 8px; border: 1.5px dashed var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+  .slot-content:hover { border-color: var(--sage); background: var(--sage-light); }
+  .slot-empty-label { font-size: 12px; color: #ccc; }
+  .slot-content.booked { border: none; background: var(--sage-light); cursor: default; padding: 8px 12px; justify-content: space-between; }
+  .slot-booked-name { font-weight: 600; font-size: 13px; color: var(--ink); }
+  .slot-booked-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .slot-btn { background: none; border: none; font-size: 15px; cursor: pointer; padding: 2px 4px; opacity: 0.65; }
+  .slot-btn:hover { opacity: 1; }
+  .slot-actions { display: flex; gap: 4px; }
+
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-size: 11px; font-weight: 600; color: var(--ink); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; }
+  input, select, textarea { width: 100%; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--ink); background: var(--white); outline: none; -webkit-appearance: none; appearance: none; transition: border-color 0.2s; }
+  input:focus, select:focus, textarea:focus { border-color: var(--sage); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn-primary { background: var(--ink); color: var(--white); }
+  .btn-secondary { background: var(--sage-light); color: var(--sage); border: 1px solid #c5d9c7; }
+  .btn-danger { background: #fde8e8; color: #c0392b; border: 1px solid #f5c6c6; }
+  .btn-sm { padding: 7px 12px; font-size: 12px; }
+  .btn-full { width: 100%; padding: 13px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(26,26,46,0.5); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: var(--white); border-radius: 20px 20px 0 0; padding: 24px 20px 44px; width: 100%; max-width: 600px; animation: slideUp 0.3s ease; max-height: 92vh; overflow-y: auto; position: relative; }
+  @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 4px; }
+  .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .modal-close { position: absolute; top: 16px; right: 18px; background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); }
+
+  .fab { position: fixed; bottom: 24px; right: 20px; width: 54px; height: 54px; background: var(--terracotta); color: var(--white); border-radius: 50%; border: none; font-size: 26px; cursor: pointer; box-shadow: 0 4px 16px rgba(193,127,90,0.45); display: flex; align-items: center; justify-content: center; z-index: 150; }
+
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--ink); color: var(--white); padding: 11px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 500; transition: transform 0.3s ease; white-space: nowrap; box-shadow: var(--shadow-lg); max-width: 90vw; text-align: center; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .empty { text-align: center; padding: 32px 16px; color: var(--muted); }
+  .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty p { font-size: 13px; line-height: 1.6; }
+
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+  .hist-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .hist-item:last-child { border-bottom: none; }
+  .hist-name { font-weight: 500; font-size: 13px; }
+  .hist-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .hist-badge { background: var(--terracotta-light); color: var(--terracotta); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+
+  .attn-card { background: var(--white); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; border-left: 3px solid var(--terracotta); box-shadow: var(--shadow); cursor: pointer; }
+
+  @media (max-width: 360px) { .form-row { grid-template-columns: 1fr; } .tab { font-size: 11px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">Indre's<span> Beauty</span></div>
+  <div class="header-right">Session Tracker</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('dashboard')">Today</div>
+  <div class="tab" onclick="switchTab('book')">Book</div>
+  <div class="tab" onclick="switchTab('customers')">Customers</div>
+  <div class="tab" onclick="switchTab('history')">History</div>
+</div>
+
+<!-- TODAY -->
+<div class="page active" id="page-dashboard">
+  <div style="height:12px"></div>
+  <div class="today-block">
+    <div class="today-label">Today</div>
+    <div class="today-date" id="dash-date"></div>
+    <div class="today-count" id="dash-count"></div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-number" id="s-customers">0</div><div class="stat-label">Customers</div></div>
+    <div class="stat-card"><div class="stat-number" id="s-today">0</div><div class="stat-label">Today</div></div>
+    <div class="stat-card"><div class="stat-number" id="s-low">0</div><div class="stat-label">Low / Empty</div></div>
+  </div>
+  <div id="today-schedule"></div>
+  <div style="height:8px"></div>
+  <div class="section-title">Needs attention</div>
+  <div class="section-sub">Running low or empty bundles</div>
+  <div id="attention-list"></div>
+</div>
+
+<!-- BOOK -->
+<div class="page" id="page-book">
+  <div style="height:12px"></div>
+  <div class="section-title">Book a session</div>
+  <div class="section-sub">See the day, tap a free slot to book</div>
+  <div class="cal-nav">
+    <div class="cal-nav-btn" onclick="shiftWeek(-1)">‹</div>
+    <div style="flex:1;text-align:center">
+      <div class="cal-date-display" id="cal-selected-label"></div>
+      <div class="cal-date-sub" id="cal-selected-sub"></div>
+    </div>
+    <div class="cal-nav-btn" onclick="shiftWeek(1)">›</div>
+  </div>
+  <div class="week-strip" id="week-strip"></div>
+  <div id="day-schedule"></div>
+</div>
+
+<!-- CUSTOMERS -->
+<div class="page" id="page-customers">
+  <div style="height:12px"></div>
+  <div class="section-title">Customers</div>
+  <div class="section-sub">Tap to manage bundles and sessions</div>
+  <div id="customer-list"></div>
+  <button class="fab" onclick="openModal('modal-add-customer')">+</button>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <div style="height:12px"></div>
+  <div class="section-title">Session history</div>
+  <div class="section-sub">All booked sessions</div>
+  <div class="card" id="history-list"></div>
+</div>
+
+<!-- ADD CUSTOMER -->
+<div class="modal-overlay" id="modal-add-customer">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-add-customer')">×</button>
+    <div class="modal-title">Add customer</div>
+    <div class="modal-sub">You can add more bundles after creating the customer</div>
+    <div class="form-group"><label>Full name</label><input type="text" id="nc-name" placeholder="e.g. Vaida Hingeberg"></div>
+    <div class="form-group"><label>Email address</label><input type="email" id="nc-email" placeholder="customer@email.com"></div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:10px">First bundle</div>
+    <div class="form-group"><label>Service type</label><input type="text" id="nc-service" placeholder="e.g. Leg massage"></div>
+    <div class="form-group"><label>Sessions purchased</label><input type="number" id="nc-bundle" placeholder="e.g. 9" min="1"></div>
+    <button class="btn btn-primary btn-full" onclick="addCustomer()">Add customer</button>
+  </div>
+</div>
+
+<!-- ADD BUNDLE -->
+<div class="modal-overlay" id="modal-add-bundle">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-add-bundle')">×</button>
+    <div class="modal-title">Add new bundle</div>
+    <div class="modal-sub" id="ab-sub"></div>
+    <div class="form-group"><label>Service type</label><input type="text" id="ab-service" placeholder="e.g. Face massage"></div>
+    <div class="form-group"><label>Sessions purchased</label><input type="number" id="ab-bundle" placeholder="e.g. 3" min="1"></div>
+    <button class="btn btn-primary btn-full" onclick="saveNewBundle()">Add bundle</button>
+  </div>
+</div>
+
+<!-- CUSTOMER DETAIL -->
+<div class="modal-overlay" id="modal-customer-detail">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-customer-detail')">×</button>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- BOOK SESSION -->
+<div class="modal-overlay" id="modal-book-session">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-book-session')">×</button>
+    <div class="modal-title">Book session</div>
+    <div class="modal-sub" id="bs-sub"></div>
+    <div class="form-group"><label>Customer</label>
+      <select id="bs-customer" onchange="onBookCustomerChange()"><option value="">Select customer...</option></select>
+    </div>
+    <div class="form-group"><label>Bundle / Service</label>
+      <select id="bs-bundle"><option value="">Select bundle...</option></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Date</label><input type="date" id="bs-date"></div>
+      <div class="form-group"><label>Time</label><input type="time" id="bs-time"></div>
+    </div>
+    <div class="form-group"><label>Notes (optional)</label><input type="text" id="bs-notes" placeholder="e.g. focus on left leg"></div>
+    <button class="btn btn-primary btn-full" onclick="confirmBookSession()">Confirm booking</button>
+  </div>
+</div>
+
+<!-- EDIT SESSION -->
+<div class="modal-overlay" id="modal-edit-session">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-edit-session')">×</button>
+    <div class="modal-title">Edit session</div>
+    <div class="modal-sub" id="es-sub"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Date</label><input type="date" id="es-date"></div>
+      <div class="form-group"><label>Time</label><input type="time" id="es-time"></div>
+    </div>
+    <div class="form-group"><label>Notes (optional)</label><input type="text" id="es-notes"></div>
+    <button class="btn btn-primary btn-full" onclick="saveEditSession()">Save changes</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let customers = JSON.parse(localStorage.getItem('kk2-customers')||'[]');
+let sessions  = JSON.parse(localStorage.getItem('kk2-sessions')||'[]');
+let calWeekStart = getMonday(new Date());
+let calSelected  = new Date(); calSelected.setHours(0,0,0,0);
+let editingSessionId = null;
+let addBundleForId   = null;
+
+function save() {
+  localStorage.setItem('kk2-customers', JSON.stringify(customers));
+  localStorage.setItem('kk2-sessions',  JSON.stringify(sessions));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function todayStr() { return isoDate(new Date()); }
+
+function dateStr(s) {
+  const d = typeof s === 'string' ? new Date(s+'T12:00:00') : s;
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+}
+
+function getMonday(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  const day = dt.getDay();
+  dt.setDate(dt.getDate() - day + (day===0 ? -6 : 1));
+  return dt;
+}
+
+function bundleUsed(cid, bid) { return sessions.filter(s=>s.customerId===cid && s.bundleId===bid).length; }
+function bundleLeft(c, b)     { return b.total - bundleUsed(c.id, b.id); }
+function bClass(left)         { return left<=0?'empty':left<=2?'low':''; }
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['dashboard','book','customers','history'][i]===tab));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  if(tab==='dashboard') renderDashboard();
+  if(tab==='book')      renderBook();
+  if(tab==='customers') renderCustomers();
+  if(tab==='history')   renderHistory();
+}
+
+// ── DASHBOARD ──
+function renderDashboard() {
+  const today = todayStr();
+  const now   = new Date();
+  document.getElementById('dash-date').textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  const ts = sessions.filter(s=>s.date===today).sort((a,b)=>a.time.localeCompare(b.time));
+  document.getElementById('s-customers').textContent = customers.length;
+  document.getElementById('s-today').textContent     = ts.length;
+  const lowCount = customers.filter(c=>c.bundles&&c.bundles.some(b=>bundleLeft(c,b)<=2)).length;
+  document.getElementById('s-low').textContent = lowCount;
+  document.getElementById('dash-count').textContent = ts.length===0 ? 'No sessions today' : `${ts.length} session${ts.length>1?'s':''} today`;
+
+  const sched = document.getElementById('today-schedule');
+  if(ts.length===0){ sched.innerHTML=''; }
+  else {
+    sched.innerHTML = '<div class="section-title" style="margin-bottom:10px">Today\'s schedule</div>' +
+      ts.map(s=>{
+        const c=customers.find(c=>c.id===s.customerId);
+        const b=c&&c.bundles?c.bundles.find(b=>b.id===s.bundleId):null;
+        return `<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 14px">
+          <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--terracotta);min-width:44px">${s.time}</div>
+          <div><div style="font-weight:600;font-size:14px">${c?c.name:'?'}</div>
+          <div style="font-size:12px;color:var(--muted)">${b?b.service:''}${s.notes?' · '+s.notes:''}</div></div>
+        </div>`;
+      }).join('');
+  }
+
+  const att = customers.filter(c=>c.bundles&&c.bundles.some(b=>bundleLeft(c,b)<=2));
+  const al  = document.getElementById('attention-list');
+  if(att.length===0){ al.innerHTML='<div class="empty"><div class="empty-icon">✨</div><p>All customers have plenty of sessions.</p></div>'; return; }
+  al.innerHTML = att.map(c=>{
+    const low = c.bundles.filter(b=>bundleLeft(c,b)<=2);
+    return `<div class="attn-card" onclick="openDetail('${c.id}')">
+      <div style="font-weight:600;font-size:14px;margin-bottom:5px">${c.name}</div>
+      ${low.map(b=>`<span class="bundle-chip ${bClass(bundleLeft(c,b))}">${b.service}: ${bundleLeft(c,b)} left</span>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ── BOOK / CALENDAR ──
+function renderBook() { renderWeekStrip(); renderDaySchedule(); }
+
+function shiftWeek(dir) {
+  calWeekStart = new Date(calWeekStart);
+  calWeekStart.setDate(calWeekStart.getDate()+dir*7);
+  renderWeekStrip(); renderDaySchedule();
+}
+
+function renderWeekStrip() {
+  const days=['Mo','Tu','We','Th','Fr','Sa','Su'];
+  const today=todayStr();
+  let html='';
+  for(let i=0;i<7;i++){
+    const d=new Date(calWeekStart); d.setDate(d.getDate()+i);
+    const ds=isoDate(d);
+    const isSel=ds===isoDate(calSelected);
+    const isT=ds===today&&!isSel;
+    const hasSess=sessions.some(s=>s.date===ds);
+    html+=`<div class="week-day${isSel?' selected':''}${isT?' is-today':''}" onclick="selectDay('${ds}')">
+      <div class="week-day-label">${days[i]}</div>
+      <div class="week-day-num">${d.getDate()}</div>
+      ${hasSess?'<div class="week-dot"></div>':'<div class="no-dot"></div>'}
+    </div>`;
+  }
+  document.getElementById('week-strip').innerHTML=html;
+  const sel=calSelected;
+  document.getElementById('cal-selected-label').textContent=sel.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('cal-selected-sub').textContent=isoDate(sel)===today?'Today':'';
+}
+
+function selectDay(ds) {
+  calSelected=new Date(ds+'T12:00:00'); calSelected.setHours(0,0,0,0);
+  calWeekStart=getMonday(calSelected);
+  renderWeekStrip(); renderDaySchedule();
+}
+
+function renderDaySchedule() {
+  const ds=isoDate(calSelected);
+  const hours=['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
+  const daySess=sessions.filter(s=>s.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
+  let html='';
+  if(customers.length===0){
+    document.getElementById('day-schedule').innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>Add a customer first, then you can book sessions.</p></div>';
+    return;
+  }
+  hours.forEach(hour=>{
+    const s=daySess.find(s=>s.time===hour);
+    if(s){
+      const c=customers.find(c=>c.id===s.customerId);
+      const b=c&&c.bundles?c.bundles.find(b=>b.id===s.bundleId):null;
+      const left=c&&b?bundleLeft(c,b):'?';
+      html+=`<div class="time-slot">
+        <div class="time-label">${hour}</div>
+        <div class="slot-content booked">
+          <div>
+            <div class="slot-booked-name">${c?c.name:'?'}</div>
+            <div class="slot-booked-meta">${b?b.service:''}${s.notes?' · '+s.notes:''} · ${left} left after</div>
+          </div>
+          <div class="slot-actions">
+            <button class="slot-btn" onclick="openEditSession('${s.id}')">✏️</button>
+            <button class="slot-btn" onclick="deleteSession('${s.id}')">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      html+=`<div class="time-slot" onclick="openBookForSlot('${ds}','${hour}')">
+        <div class="time-label">${hour}</div>
+        <div class="slot-content"><span class="slot-empty-label">+ book</span></div>
+      </div>`;
+    }
+  });
+  document.getElementById('day-schedule').innerHTML=html;
+}
+
+function openBookForSlot(date,time) {
+  const sel=document.getElementById('bs-customer');
+  sel.innerHTML='<option value="">Select customer...</option>';
+  customers.forEach(c=>{
+    const hasLeft=c.bundles&&c.bundles.some(b=>bundleLeft(c,b)>0);
+    sel.innerHTML+=`<option value="${c.id}"${!hasLeft?' disabled':''}>${c.name}${!hasLeft?' (empty)':''}</option>`;
+  });
+  document.getElementById('bs-bundle').innerHTML='<option value="">Select bundle...</option>';
+  document.getElementById('bs-sub').textContent=`${dateStr(date)} at ${time}`;
+  document.getElementById('bs-date').value=date;
+  document.getElementById('bs-time').value=time;
+  document.getElementById('bs-notes').value='';
+  openModal('modal-book-session');
+}
+
+function onBookCustomerChange() {
+  const id=document.getElementById('bs-customer').value;
+  const bs=document.getElementById('bs-bundle');
+  bs.innerHTML='<option value="">Select bundle...</option>';
+  if(!id) return;
+  const c=customers.find(c=>c.id===id);
+  if(!c||!c.bundles) return;
+  const available=c.bundles.filter(b=>bundleLeft(c,b)>0);
+  available.forEach(b=>{ bs.innerHTML+=`<option value="${b.id}">${b.service} (${bundleLeft(c,b)} left)</option>`; });
+  if(available.length===1) bs.value=available[0].id;
+}
+
+function confirmBookSession() {
+  const cid=document.getElementById('bs-customer').value;
+  const bid=document.getElementById('bs-bundle').value;
+  const date=document.getElementById('bs-date').value;
+  const time=document.getElementById('bs-time').value;
+  const notes=document.getElementById('bs-notes').value.trim();
+  if(!cid||!bid||!date||!time){ showToast('Please fill in all fields'); return; }
+  const c=customers.find(c=>c.id===cid);
+  const b=c.bundles.find(b=>b.id===bid);
+  if(bundleLeft(c,b)<=0){ showToast('No sessions left in this bundle'); return; }
+  sessions.push({id:Date.now().toString(),customerId:cid,bundleId:bid,date,time,notes,bookedAt:new Date().toISOString()});
+  save();
+  closeModal('modal-book-session');
+  showToast(`Session booked for ${c.name} ✓`);
+  const left=bundleLeft(c,b);
+  if(left<=2&&left>0) setTimeout(()=>showToast(`⚠️ ${c.name} has ${left} ${b.service} session${left>1?'s':''} left`),3400);
+  if(left<=0) setTimeout(()=>showToast(`⚠️ ${c.name}'s ${b.service} bundle is now empty`),3400);
+  calSelected=new Date(date+'T12:00:00'); calSelected.setHours(0,0,0,0);
+  calWeekStart=getMonday(calSelected);
+  renderBook(); renderDashboard();
+}
+
+// ── EDIT ──
+function openEditSession(id) {
+  const s=sessions.find(s=>s.id===id); if(!s) return;
+  const c=customers.find(c=>c.id===s.customerId);
+  const b=c&&c.bundles?c.bundles.find(b=>b.id===s.bundleId):null;
+  editingSessionId=id;
+  document.getElementById('es-sub').textContent=`${c?c.name:''} · ${b?b.service:''}`;
+  document.getElementById('es-date').value=s.date;
+  document.getElementById('es-time').value=s.time;
+  document.getElementById('es-notes').value=s.notes||'';
+  openModal('modal-edit-session');
+}
+
+function saveEditSession() {
+  const date=document.getElementById('es-date').value;
+  const time=document.getElementById('es-time').value;
+  const notes=document.getElementById('es-notes').value.trim();
+  if(!date||!time){ showToast('Please fill date and time'); return; }
+  const s=sessions.find(s=>s.id===editingSessionId); if(!s) return;
+  s.date=date; s.time=time; s.notes=notes;
+  save();
+  closeModal('modal-edit-session');
+  showToast('Session updated ✓');
+  calSelected=new Date(date+'T12:00:00'); calSelected.setHours(0,0,0,0);
+  calWeekStart=getMonday(calSelected);
+  renderBook(); renderDashboard(); renderHistory();
+}
+
+// ── DELETE ──
+function deleteSession(id) {
+  const s=sessions.find(s=>s.id===id); if(!s) return;
+  const c=customers.find(c=>c.id===s.customerId);
+  if(!confirm(`Remove session for ${c?c.name:'customer'} on ${dateStr(s.date)} at ${s.time}?\nThis returns 1 session to their bundle.`)) return;
+  sessions=sessions.filter(s=>s.id!==id);
+  save(); showToast('Session removed, 1 session returned to bundle');
+  renderBook(); renderDashboard(); renderHistory();
+}
+
+// ── CUSTOMERS ──
+function renderCustomers() {
+  const list=document.getElementById('customer-list');
+  if(customers.length===0){ list.innerHTML='<div class="empty"><div class="empty-icon">👤</div><p>No customers yet. Tap + to add your first.</p></div>'; return; }
+  list.innerHTML=customers.map(c=>{
+    const chips=(c.bundles||[]).map(b=>{
+      const left=bundleLeft(c,b);
+      return `<span class="bundle-chip ${bClass(left)}">${b.service}: ${left}/${b.total}</span>`;
+    }).join('');
+    return `<div class="cust-card" onclick="openDetail('${c.id}')">
+      <div class="cust-name">${c.name}</div>
+      <div class="cust-meta">${c.email}</div>
+      <div style="margin-top:8px">${chips||'<span style="font-size:12px;color:var(--muted)">No bundles</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function openDetail(id) {
+  const c=customers.find(c=>c.id===id); if(!c) return;
+  const cs=sessions.filter(s=>s.customerId===id).sort((a,b)=>new Date(b.date+' '+b.time)-new Date(a.date+' '+a.time));
+  const bundleRows=(c.bundles||[]).map(b=>{
+    const left=bundleLeft(c,b); const used=bundleUsed(c.id,b.id);
+    const pct=Math.max(0,(left/b.total)*100); const cls=bClass(left);
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-weight:600;font-size:13px">${b.service}</div>
+        <span class="bundle-chip ${cls}" style="margin:0">${left} left</span>
+      </div>
+      <div class="prog-wrap" style="margin:0">
+        <div class="prog-info"><span>${used} used</span><span>${b.total} total</span></div>
+        <div class="prog-bar"><div class="prog-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="addSessionsToBundle('${id}','${b.id}')">+ Add sessions</button>
+    </div>`;
+  }).join('');
+
+  document.getElementById('detail-content').innerHTML=`
+    <div class="cust-name" style="font-size:22px;margin-bottom:2px">${c.name}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">${c.email}</div>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-secondary btn-sm" onclick="openBookFromDetail('${id}')">+ Book session</button>
+      <button class="btn btn-secondary btn-sm" onclick="openAddBundle('${id}')">+ New bundle</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteCustomer('${id}')">Remove</button>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin:10px 0 10px">Bundles</div>
+    ${bundleRows||'<div style="font-size:13px;color:var(--muted)">No bundles yet</div>'}
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin:10px 0 10px">Session history</div>
+    ${cs.length===0?'<div style="font-size:13px;color:var(--muted)">No sessions yet</div>':
+      cs.map((s,i)=>{
+        const b=c.bundles?c.bundles.find(b=>b.id===s.bundleId):null;
+        return `<div class="hist-item">
+          <div>
+            <div class="hist-name">${b?b.service:'Session'}</div>
+            <div class="hist-meta">${dateStr(s.date)} at ${s.time}${s.notes?' · '+s.notes:''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="hist-badge">#${cs.length-i}</span>
+            <button class="slot-btn" onclick="openEditSession('${s.id}')">✏️</button>
+            <button class="slot-btn" onclick="deleteSession('${s.id}');closeModal('modal-customer-detail');setTimeout(()=>openDetail('${id}'),100)">🗑️</button>
+          </div>
+        </div>`;
+      }).join('')}
+  `;
+  openModal('modal-customer-detail');
+}
+
+function openBookFromDetail(id) {
+  closeModal('modal-customer-detail');
+  switchTab('book');
+  setTimeout(()=>{ openBookForSlot(todayStr(),'10:00'); document.getElementById('bs-customer').value=id; onBookCustomerChange(); },200);
+}
+
+function openAddBundle(id) {
+  addBundleForId=id;
+  const c=customers.find(c=>c.id===id);
+  document.getElementById('ab-sub').textContent=`New bundle for ${c.name}`;
+  document.getElementById('ab-service').value='';
+  document.getElementById('ab-bundle').value='';
+  closeModal('modal-customer-detail');
+  openModal('modal-add-bundle');
+}
+
+function saveNewBundle() {
+  const service=document.getElementById('ab-service').value.trim();
+  const total=parseInt(document.getElementById('ab-bundle').value);
+  if(!service||!total){ showToast('Please fill in all fields'); return; }
+  const c=customers.find(c=>c.id===addBundleForId); if(!c) return;
+  if(!c.bundles) c.bundles=[];
+  c.bundles.push({id:Date.now().toString(),service,total});
+  save(); closeModal('modal-add-bundle');
+  showToast(`${service} bundle added for ${c.name}`);
+  renderCustomers(); openDetail(addBundleForId);
+}
+
+function addSessionsToBundle(cid,bid) {
+  const c=customers.find(c=>c.id===cid);
+  const b=c.bundles.find(b=>b.id===bid);
+  const n=prompt(`How many sessions to add to ${c.name}'s ${b.service} bundle?`);
+  const num=parseInt(n);
+  if(!num||num<1) return;
+  b.total+=num; save();
+  showToast(`Added ${num} sessions to ${b.service}`);
+  closeModal('modal-customer-detail');
+  renderDashboard(); openDetail(cid);
+}
+
+function deleteCustomer(id) {
+  const c=customers.find(c=>c.id===id);
+  if(!confirm(`Remove ${c?c.name:'this customer'}? All their history will be deleted.`)) return;
+  customers=customers.filter(c=>c.id!==id);
+  sessions=sessions.filter(s=>s.customerId!==id);
+  save(); closeModal('modal-customer-detail');
+  showToast('Customer removed');
+  renderCustomers(); renderDashboard();
+}
+
+function addCustomer() {
+  const name=document.getElementById('nc-name').value.trim();
+  const email=document.getElementById('nc-email').value.trim();
+  const service=document.getElementById('nc-service').value.trim();
+  const total=parseInt(document.getElementById('nc-bundle').value);
+  if(!name||!email||!service||!total){ showToast('Please fill in all fields'); return; }
+  customers.push({id:Date.now().toString(),name,email,bundles:[{id:(Date.now()+1).toString(),service,total}],createdAt:new Date().toISOString()});
+  save(); closeModal('modal-add-customer');
+  ['nc-name','nc-email','nc-service','nc-bundle'].forEach(i=>document.getElementById(i).value='');
+  showToast(`${name} added ✓`);
+  renderCustomers(); renderDashboard();
+}
+
+// ── HISTORY ──
+function renderHistory() {
+  const list=document.getElementById('history-list');
+  if(sessions.length===0){ list.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No sessions booked yet.</p></div>'; return; }
+  const sorted=[...sessions].sort((a,b)=>new Date(b.date+' '+b.time)-new Date(a.date+' '+a.time));
+  list.innerHTML=sorted.map(s=>{
+    const c=customers.find(c=>c.id===s.customerId);
+    const b=c&&c.bundles?c.bundles.find(b=>b.id===s.bundleId):null;
+    return `<div class="hist-item">
+      <div>
+        <div class="hist-name">${c?c.name:'Unknown'}</div>
+        <div class="hist-meta">${b?b.service+' · ':''}${dateStr(s.date)} at ${s.time}${s.notes?' · '+s.notes:''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="slot-btn" onclick="openEditSession('${s.id}')">✏️</button>
+        <button class="slot-btn" onclick="deleteSession('${s.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(m=>{ m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('active'); }); });
+
+renderDashboard();
+</script>
+</body>
+</html>
