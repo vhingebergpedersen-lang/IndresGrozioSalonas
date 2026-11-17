@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RouteRunner · Route planning prototype</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --ink: #13233a; --ink-2: #3c4d66; --muted: #7b889b; --line: #e3e8ef;
+    --bg: #f4f6f9; --white: #fff; --brand: #1f6feb; --brand-2: #e8f0fe;
+    --ok: #1a8f5a; --ok-bg: #e6f5ee; --warn: #c27a00; --warn-bg: #fff4dd;
+    --bad: #c8372d; --bad-bg: #fdeceb; --radius: 10px;
+    --shadow: 0 1px 3px rgba(19,35,58,.08), 0 4px 14px rgba(19,35,58,.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; height: 100vh; display: flex; flex-direction: column; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  header { background: var(--ink); color: #fff; display: flex; align-items: center; gap: 24px; padding: 0 20px; height: 56px; flex-shrink: 0; }
+  .logo { font-weight: 700; font-size: 18px; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg,#3b82f6,#22c55e); display: grid; place-items: center; font-size: 14px; }
+  nav { display: flex; gap: 4px; height: 100%; }
+  nav button { background: none; border: none; color: #a9b6c8; padding: 0 14px; height: 100%; border-bottom: 3px solid transparent; font-weight: 500; }
+  nav button:hover { color: #fff; }
+  nav button.active { color: #fff; border-bottom-color: #3b82f6; }
+  .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #a9b6c8; }
+  .hdr-right input[type=date] { background: #22344f; border: 1px solid #344a6b; color: #fff; border-radius: 6px; padding: 5px 8px; color-scheme: dark; }
+
+  main { flex: 1; min-height: 0; display: flex; }
+  .view { display: none; flex: 1; min-height: 0; }
+  .view.active { display: flex; }
+
+  /* Planner */
+  .sidebar { width: 420px; flex-shrink: 0; background: var(--white); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .side-top { padding: 16px; border-bottom: 1px solid var(--line); }
+  .side-scroll { flex: 1; overflow-y: auto; padding: 12px 16px 24px; }
+  #map { flex: 1; min-height: 0; }
+  .map-wrap { flex: 1; position: relative; display: flex; }
+  .map-hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 500; background: var(--ink); color: #fff; padding: 8px 14px; border-radius: 20px; font-size: 13px; display: none; box-shadow: var(--shadow); }
+  .map-hint.show { display: block; }
+  .map-fallback { margin: auto; color: var(--muted); text-align: center; padding: 40px; }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+  .kpi { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+  .kpi b { display: block; font-size: 18px; }
+  .kpi span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .savings { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 8px 12px; font-size: 13px; display: none; }
+  .savings.show { display: block; }
+
+  .btn { border: 1px solid var(--line); background: var(--white); border-radius: 8px; padding: 8px 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+  a.btn { text-decoration: none; color: inherit; }
+  .btn:hover { background: var(--bg); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover { background: #185ccc; }
+  .btn.small { padding: 4px 10px; font-size: 12px; }
+  .btn.danger { color: var(--bad); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .route-card { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .route-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; background: #fbfcfd; }
+  .swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .route-head .name { font-weight: 600; }
+  .route-head .meta { margin-left: auto; font-size: 12px; color: var(--muted); text-align: right; }
+  .bar { height: 4px; background: var(--line); }
+  .bar > div { height: 100%; }
+  .route-body { display: none; padding: 4px 12px 10px; }
+  .route-card.open .route-body { display: block; }
+  .stop-line { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; padding: 7px 0; border-bottom: 1px dashed var(--line); align-items: center; }
+  .stop-line:last-child { border-bottom: none; }
+  .num { width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .stop-line .t { font-size: 12px; color: var(--muted); }
+  .stop-line .eta { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; text-align: right; }
+  .stop-line select { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 2px; margin-top: 2px; }
+  .depot-line { font-size: 12px; color: var(--muted); padding: 6px 0; }
+  .tag { display: inline-block; font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); }
+  .tag.warn { background: var(--warn-bg); color: var(--warn); }
+  .tag.bad { background: var(--bad-bg); color: var(--bad); }
+  .tag.grey { background: var(--bg); color: var(--muted); }
+  .unassigned { border: 1px solid #f3c2bd; background: var(--bad-bg); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; }
+
+  /* Tables / forms */
+  .page { flex: 1; overflow-y: auto; padding: 24px; }
+  .page-inner { max-width: 1150px; margin: 0 auto; }
+  .page h2 { font-size: 20px; margin-bottom: 4px; }
+  .page .sub { color: var(--muted); margin-bottom: 16px; }
+  .panel { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .panel-head h3 { font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); font-weight: 600; background: #fbfcfd; }
+  tr:last-child td { border-bottom: none; }
+  td input, td select { width: 100%; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 4px 6px; }
+  td input:hover, td select:hover { border-color: var(--line); }
+  td input:focus, td select:focus { border-color: var(--brand); background: #fff; outline: none; }
+  td input.narrow { width: 70px; }
+  .form-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; padding: 16px; }
+  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-2); font-weight: 500; }
+  .form-grid label.wide { grid-column: span 2; }
+  .form-grid input, .form-grid select, textarea { border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; background: #fff; }
+  textarea { width: 100%; min-height: 110px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  .drivers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .driver-card { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+  .driver-card .top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .driver-card .top input[type=text] { font-weight: 600; font-size: 15px; border: 1px solid transparent; border-radius: 4px; padding: 2px 4px; flex: 1; min-width: 0; }
+  .driver-card .top input[type=text]:hover { border-color: var(--line); }
+  .driver-card input[type=color] { width: 28px; height: 28px; border: none; background: none; padding: 0; }
+  .driver-card .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .driver-card .fields label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .driver-card .fields input { border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; }
+  .driver-card .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .switch { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+  /* Driver app */
+  .driver-page { flex: 1; overflow-y: auto; display: flex; justify-content: center; gap: 40px; padding: 24px; align-items: flex-start; }
+  .driver-side { width: 300px; }
+  .phone { width: 380px; height: 760px; border: 12px solid #111827; border-radius: 42px; background: #f1f4f8; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.25); flex-shrink: 0; }
+  .phone-top { background: var(--ink); color: #fff; padding: 22px 18px 14px; }
+  .phone-top small { color: #a9b6c8; }
+  .phone-top h3 { font-size: 18px; margin: 2px 0 10px; }
+  .prog { height: 6px; background: #2c3e5a; border-radius: 3px; overflow: hidden; }
+  .prog > div { height: 100%; background: #22c55e; transition: width .3s; }
+  .phone-body { flex: 1; overflow-y: auto; padding: 12px; }
+  .job { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); border-left: 4px solid var(--line); }
+  .job.current { border-left-color: var(--brand); }
+  .job.done { opacity: .6; border-left-color: var(--ok); }
+  .job.failed { opacity: .7; border-left-color: var(--bad); }
+  .job .jt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .job .jt b { font-size: 15px; }
+  .job .addr { color: var(--muted); font-size: 13px; margin: 2px 0 6px; }
+  .job .note { font-size: 12px; background: var(--warn-bg); color: #7a5200; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px; }
+  .job .acts { display: flex; gap: 6px; }
+  .job .acts .btn { flex: 1; justify-content: center; padding: 8px 6px; font-size: 13px; }
+  .btn.go { background: var(--ok); border-color: var(--ok); color: #fff; }
+
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; z-index: 2000; transition: transform .25s; font-size: 13px; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .marker-pin { width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); display: grid; place-items: center; }
+  .marker-pin span { transform: rotate(45deg); color: #fff; font-size: 11px; font-weight: 700; }
+  .marker-pin.done { opacity: .45; }
+  .depot-pin { width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: #fff; display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); font-size: 15px; }
+
+  @media (max-width: 900px) {
+    .view.active#view-planner { flex-direction: column; }
+    .sidebar { width: 100%; max-height: 50vh; }
+    nav button { padding: 0 8px; }
+    .hdr-right span { display: none; }
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .driver-page { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot">➜</div>RouteRunner</div>
+  <nav>
+    <button data-view="planner" class="active">Planner</button>
+    <button data-view="stops">Stops</button>
+    <button data-view="drivers">Drivers</button>
+    <button data-view="driver">Driver app</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+  <div class="hdr-right"><span>Plan date</span><input type="date" id="planDate"></div>
+</header>
+
+<main>
+  <!-- PLANNER -->
+  <section class="view active" id="view-planner">
+    <div class="sidebar">
+      <div class="side-top">
+        <div class="row">
+          <button class="btn primary" id="btnOptimise">⚡ Optimise routes</button>
+          <button class="btn" id="btnAddOnMap" title="Click on the map to add a stop">＋ Stop on map</button>
+          <button class="btn" id="btnClearPlan" title="Clear plan">Reset</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><b id="kStops">0</b><span>Stops</span></div>
+          <div class="kpi"><b id="kKm">0</b><span>Km</span></div>
+          <div class="kpi"><b id="kTime">0</b><span>Drive h</span></div>
+          <div class="kpi"><b id="kDone">0%</b><span>Done</span></div>
+        </div>
+        <div class="savings" id="savings"></div>
+      </div>
+      <div class="side-scroll" id="routeList"></div>
+    </div>
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="map-hint" id="mapHint">Click on the map to place a new stop · Esc to cancel</div>
+    </div>
+  </section>
+
+  <!-- STOPS -->
+  <section class="view" id="view-stops">
+    <div class="page"><div class="page-inner">
+      <h2>Stops</h2>
+      <p class="sub">Customers and jobs to visit on the plan date. Edit directly in the table. Time windows are respected by the optimiser.</p>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Add stop</h3></div>
+        <form class="form-grid" id="stopForm">
+          <label class="wide">Customer name<input name="name" required placeholder="e.g. Hansen Bageri"></label>
+          <label class="wide">Address<input name="address" placeholder="Street, city"></label>
+          <label>Latitude<input name="lat" type="number" step="any" placeholder="55.67"></label>
+          <label>Longitude<input name="lng" type="number" step="any" placeholder="12.56"></label>
+          <label>Window from<input name="from" type="time" value="08:00"></label>
+          <label>Window to<input name="to" type="time" value="16:00"></label>
+          <label>Service (min)<input name="service" type="number" value="10" min="0"></label>
+          <label>Load (units)<input name="demand" type="number" value="1" min="0"></label>
+          <label class="wide">Note for driver<input name="note" placeholder="Gate code, back door..."></label>
+          <div class="row" style="grid-column: 1 / -1;">
+            <button class="btn primary" type="submit">Add stop</button>
+            <button class="btn" type="button" id="btnGeocode" title="Looks up the address with OpenStreetMap Nominatim">🔎 Find coordinates from address</button>
+            <span class="t" style="color:var(--muted);font-size:12px">Tip: you can also add stops by clicking the map in the Planner.</span>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>All stops <span id="stopCount" class="tag grey"></span></h3>
+          <div class="row" style="margin-left:auto">
+            <button class="btn small" id="btnExport">⬇ Export CSV</button>
+            <button class="btn small" id="btnShowImport">⬆ Import CSV</button>
+            <button class="btn small danger" id="btnDeleteAll">Delete all</button>
+          </div>
+        </div>
+        <div id="importBox" style="display:none;padding:16px;border-bottom:1px solid var(--line)">
+          <p class="sub" style="margin-bottom:8px">Paste CSV with the header: <code>name,address,lat,lng,from,to,service,demand,note</code></p>
+          <textarea id="importText"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button class="btn primary small" id="btnImport">Import (append)</button>
+            <input type="file" id="importFile" accept=".csv,text/csv">
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>#</th><th>Customer</th><th>Address</th><th>From</th><th>To</th><th>Service</th><th>Load</th><th>Note</th><th>Route</th><th></th></tr></thead>
+            <tbody id="stopsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- DRIVERS -->
+  <section class="view" id="view-drivers">
+    <div class="page"><div class="page-inner">
+      <div class="row" style="margin-bottom:16px">
+        <div>
+          <h2>Drivers &amp; vehicles</h2>
+          <p class="sub" style="margin:0">Shift hours and vehicle capacity. Only active drivers are used when optimising.</p>
+        </div>
+        <button class="btn primary" id="btnAddDriver" style="margin-left:auto">＋ Add driver</button>
+      </div>
+      <div class="drivers-grid" id="driversGrid"></div>
+    </div></div>
+  </section>
+
+  <!-- DRIVER APP -->
+  <section class="view" id="view-driver">
+    <div class="driver-page">
+      <div class="driver-side">
+        <h2 style="font-size:20px;margin-bottom:6px">Driver app preview</h2>
+        <p class="sub" style="color:var(--muted);margin-bottom:14px">This is what a driver sees on their phone. Mark stops as delivered or failed and watch the Planner update live.</p>
+        <label style="font-size:12px;color:var(--ink-2);font-weight:500">Logged in as
+          <select id="driverSelect" style="width:100%;margin-top:4px;padding:7px;border:1px solid var(--line);border-radius:6px"></select>
+        </label>
+        <div style="margin-top:14px" class="row">
+          <button class="btn small" id="btnResetProgress">Reset today's progress</button>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-top">
+          <small id="phoneDate"></small>
+          <h3 id="phoneTitle">No route</h3>
+          <div class="prog"><div id="phoneProg" style="width:0%"></div></div>
+          <small id="phoneProgTxt"></small>
+        </div>
+        <div class="phone-body" id="phoneBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings">
+    <div class="page"><div class="page-inner" style="max-width:720px">
+      <h2>Settings</h2>
+      <p class="sub">Depot and travel assumptions used by the optimiser.</p>
+      <div class="panel">
+        <div class="panel-head"><h3>Depot (start and end point)</h3></div>
+        <div class="form-grid">
+          <label class="wide">Name<input id="sDepotName"></label>
+          <label class="wide">Latitude<input id="sDepotLat" type="number" step="any"></label>
+          <label class="wide">Longitude<input id="sDepotLng" type="number" step="any"></label>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Travel model</h3></div>
+        <div class="form-grid">
+          <label class="wide">Average speed (km/h)<input id="sSpeed" type="number" min="5"></label>
+          <label class="wide">Road factor (× straight line)<input id="sRoad" type="number" step="0.05" min="1"></label>
+          <label class="wide">Optimiser effort (restarts)<input id="sEffort" type="number" min="1" max="200"></label>
+        </div>
+        <p style="padding:0 16px 16px;color:var(--muted);font-size:12px">The prototype estimates road distance as straight line distance × road factor. A production version would call a routing engine (OSRM, Valhalla, GraphHopper or Google) for real road distances and drive times.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Data</h3></div>
+        <div class="row" style="padding:16px">
+          <button class="btn" id="btnLoadDemo">Load demo data (Copenhagen)</button>
+          <button class="btn danger" id="btnWipe">Wipe everything</button>
+        </div>
+        <p style="padding:0 16px 16px;color:var(--muted);font-size:12px">All data is stored in this browser (localStorage). Nothing is sent to a server.</p>
+      </div>
+    </div></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   State
+   ============================================================ */
+const STORE_KEY = 'routerunner.v1';
+const PALETTE = ['#1f6feb','#e5534b','#1a8f5a','#c27a00','#8250df','#0b8a9e','#d6409f','#57606a'];
+
+let S = null; // app state
+
+function uid(p) { return p + Math.random().toString(36).slice(2, 9); }
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(S)); }
+function load() {
+  try { S = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { S = null; }
+  if (!S || !S.stops) S = demoState();
+}
+
+function demoState() {
+  const places = [
+    ['Hansen Bageri','Nørrebrogade 120, Nørrebro',55.6941,12.5490,'07:30','10:00',10,3,''],
+    ['Østerbro Apotek','Østerbrogade 64, Østerbro',55.7072,12.5770,'08:00','12:00',5,1,'Deliver at rear entrance'],
+    ['Café Frederik','Gammel Kongevej 150, Frederiksberg',55.6786,12.5310,'08:00','11:00',8,2,''],
+    ['Vesterbro Vin','Istedgade 80, Vesterbro',55.6680,12.5490,'10:00','15:00',10,4,''],
+    ['Amager Byg ApS','Amagerbrogade 200, Amager',55.6560,12.6050,'08:00','14:00',15,5,'Ask for Lars'],
+    ['Kastrup Kiosk','Kastrupvej 300, Kastrup',55.6300,12.6450,'09:00','16:00',5,1,''],
+    ['Hellerup Tandklinik','Strandvejen 150, Hellerup',55.7310,12.5700,'08:00','10:30',5,1,''],
+    ['Gentofte Rådhus','Bernstorffsvej 161, Gentofte',55.7480,12.5480,'09:00','13:00',10,2,'Reception, 1st floor'],
+    ['Lyngby Boghandel','Lyngby Hovedgade 50, Lyngby',55.7710,12.5030,'10:00','16:00',8,3,''],
+    ['Herlev Hospital Kantine','Borgmester Ib Juuls Vej, Herlev',55.7240,12.4400,'06:30','09:30',20,8,'Goods reception gate B'],
+    ['Rødovre Centrum Butik 14','Rødovre Centrum, Rødovre',55.6810,12.4540,'09:30','12:00',10,3,''],
+    ['Hvidovre Blomster','Hvidovrevej 220, Hvidovre',55.6420,12.4730,'08:00','16:00',5,2,''],
+    ['Brøndby Lager','Park Allé 30, Brøndby',55.6480,12.4180,'07:00','15:00',20,6,''],
+    ['Glostrup Fysioterapi','Hovedvejen 90, Glostrup',55.6660,12.3990,'11:00','15:00',5,1,''],
+    ['Ballerup Auto','Telegrafvej 5, Ballerup',55.7310,12.3630,'08:00','16:00',12,4,''],
+    ['Søborg Skole','Søborg Hovedgade 100, Søborg',55.7290,12.5100,'07:45','09:00',10,3,'Before school starts'],
+    ['Bispebjerg Bageri','Frederiksborgvej 40, Bispebjerg',55.7160,12.5400,'07:00','09:30',8,2,''],
+    ['Sydhavn Værksted','Sydhavnsgade 10, Sydhavn',55.6500,12.5400,'08:00','16:00',15,5,''],
+    ['Ørestad Kontorhus','Arne Jacobsens Allé 7, Ørestad',55.6290,12.5800,'09:00','12:00',10,3,'Badge at reception'],
+    ['Christianshavn Café','Torvegade 45, Christianshavn',55.6720,12.5910,'08:00','10:30',5,2,''],
+    ['Indre By Delikatesse','Købmagergade 30, Indre By',55.6790,12.5730,'10:00','14:00',10,3,'Pedestrian street, park on side road'],
+    ['Vanløse Frisør','Jernbane Allé 60, Vanløse',55.6870,12.4910,'09:00','17:00',5,1,''],
+    ['Brønshøj Vinhandel','Frederikssundsvej 150, Brønshøj',55.7050,12.4950,'12:00','16:00',8,3,''],
+    ['Dragør Havnekro','Strandlinien 2, Dragør',55.5930,12.6720,'10:00','14:00',10,4,''],
+    ['Tårnby Tømrer','Englandsvej 300, Tårnby',55.6280,12.6000,'07:00','16:00',8,2,''],
+    ['Ishøj Strandpark Kiosk','Ishøj Strandvej, Ishøj',55.6150,12.3520,'10:00','16:00',5,2,''],
+    ['Husum Dyrlæge','Frederikssundsvej 300, Husum',55.7110,12.4630,'08:00','12:00',5,1,''],
+    ['Charlottenlund Slotskro','Jægersborg Allé 1, Charlottenlund',55.7520,12.5780,'11:00','15:00',10,3,''],
+  ];
+  return {
+    depot: { name: 'Valby Depot', lat: 55.6620, lng: 12.5160 },
+    settings: { speed: 32, road: 1.35, effort: 40 },
+    drivers: [
+      { id: 'd1', name: 'Mette', color: PALETTE[0], start: '07:00', end: '15:00', capacity: 30, active: true },
+      { id: 'd2', name: 'Jonas', color: PALETTE[1], start: '07:00', end: '15:00', capacity: 30, active: true },
+      { id: 'd3', name: 'Sofie', color: PALETTE[2], start: '06:30', end: '14:30', capacity: 25, active: true },
+      { id: 'd4', name: 'Ahmed', color: PALETTE[3], start: '08:00', end: '16:00', capacity: 30, active: false },
+    ],
+    stops: places.map(p => ({ id: uid('s'), name: p[0], address: p[1], lat: p[2], lng: p[3], from: p[4], to: p[5], service: p[6], demand: p[7], note: p[8] })),
+    plan: null,          // { routes: [{driverId, stopIds}], unassigned: [ids], baselineKm, createdAt }
+    progress: {},        // stopId -> 'done' | 'failed'
+  };
+}
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const toMin = t => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+const toHHMM = m => { m = Math.round(m); const h = Math.floor(m / 60) % 24, mm = m % 60; return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); };
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400); }
+
+function haversine(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/* ============================================================
+   Optimiser
+   Distance matrix → cheapest insertion with time windows,
+   capacity and shift length → local search (2-opt, relocate,
+   swap) → repeated with randomised restarts, keeping the best.
+   ============================================================ */
+function buildMatrix(points) {
+  const n = points.length, D = [];
+  for (let i = 0; i < n; i++) { D.push(new Float64Array(n)); for (let j = 0; j < n; j++) D[i][j] = i === j ? 0 : haversine(points[i], points[j]) * S.settings.road; }
+  return D;
+}
+
+function makeCtx() {
+  const stops = S.stops.filter(s => isFinite(s.lat) && isFinite(s.lng));
+  const pts = [S.depot, ...stops];                 // index 0 = depot
+  const D = buildMatrix(pts);
+  const idx = new Map(stops.map((s, i) => [s.id, i + 1]));
+  const info = [null, ...stops.map(s => ({ id: s.id, from: toMin(s.from), to: toMin(s.to), svc: +s.service || 0, dem: +s.demand || 0 }))];
+  return { stops, D, idx, info, speed: S.settings.speed };
+}
+
+// evaluate one route (array of matrix indices) for a driver. Returns null if infeasible.
+function evalRoute(ctx, drv, r, detail) {
+  const { D, info, speed } = ctx;
+  let t = toMin(drv.start), km = 0, load = 0, prev = 0, wait = 0;
+  const legs = detail ? [] : null;
+  for (const i of r) {
+    const d = D[prev][i]; km += d; t += d / speed * 60;
+    const arrive = t, it = info[i];
+    if (t < it.from) { wait += it.from - t; t = it.from; }
+    if (t > it.to + 0.01) { if (!detail) return null; legs.push({ i, arrive, start: t, late: true }); }
+    else if (detail) legs.push({ i, arrive, start: t, late: false, km: d });
+    t += it.svc; load += it.dem; prev = i;
+  }
+  const back = D[prev][0]; km += back; t += back / speed * 60;
+  const over = t > toMin(drv.end) + 0.01 || load > drv.capacity;
+  if (over && !detail) return null;
+  return { km, end: t, load, wait, legs, overtime: t > toMin(drv.end) + 0.01, overload: load > drv.capacity };
+}
+
+function routeCost(ctx, drv, r) { const e = evalRoute(ctx, drv, r); return e ? e.km + e.wait * 0.01 : Infinity; }
+
+function construct(ctx, drivers, order) {
+  const routes = drivers.map(() => []), costs = drivers.map(() => 0), un = [];
+  for (const i of order) {
+    let best = null;
+    for (let k = 0; k < drivers.length; k++) {
+      const r = routes[k];
+      for (let p = 0; p <= r.length; p++) {
+        const nr = r.slice(0, p).concat(i, r.slice(p));
+        const c = routeCost(ctx, drivers[k], nr);
+        if (c === Infinity) continue;
+        const delta = c - costs[k];
+        if (!best || delta < best.delta) best = { k, nr, c, delta };
+      }
+    }
+    if (best) { routes[best.k] = best.nr; costs[best.k] = best.c; } else un.push(i);
+  }
+  return { routes, costs, un };
+}
+
+function improve(ctx, drivers, sol) {
+  const { routes, costs } = sol;
+  let improved = true, guard = 0;
+  while (improved && guard++ < 60) {
+    improved = false;
+    // 2-opt within each route
+    for (let k = 0; k < routes.length; k++) {
+      const r = routes[k];
+      for (let a = 0; a < r.length - 1; a++) for (let b = a + 1; b < r.length; b++) {
+        const nr = r.slice(0, a).concat(r.slice(a, b + 1).reverse(), r.slice(b + 1));
+        const c = routeCost(ctx, drivers[k], nr);
+        if (c < costs[k] - 1e-6) { routes[k] = nr; costs[k] = c; improved = true; break; }
+      }
+    }
+    // relocate a stop to another position / route
+    for (let k = 0; k < routes.length; k++) {
+      for (let a = 0; a < routes[k].length; a++) {
+        const i = routes[k][a];
+        const without = routes[k].slice(0, a).concat(routes[k].slice(a + 1));
+        const cw = without.length ? routeCost(ctx, drivers[k], without) : 0;
+        if (cw === Infinity) continue;
+        let best = null;
+        for (let k2 = 0; k2 < routes.length; k2++) {
+          const base = k2 === k ? without : routes[k2];
+          for (let p = 0; p <= base.length; p++) {
+            const nr = base.slice(0, p).concat(i, base.slice(p));
+            const c = routeCost(ctx, drivers[k2], nr);
+            if (c === Infinity) continue;
+            const gain = k2 === k ? costs[k] - c : (costs[k] + costs[k2]) - (cw + c);
+            if (gain > 1e-6 && (!best || gain > best.gain)) best = { k2, nr, c, gain };
+          }
+        }
+        if (best) {
+          if (best.k2 === k) { routes[k] = best.nr; costs[k] = best.c; }
+          else { routes[k] = without; costs[k] = cw; routes[best.k2] = best.nr; costs[best.k2] = best.c; }
+          improved = true; break;
+        }
+      }
+    }
+    // swap two stops between routes
+    for (let k = 0; k < routes.length && !improved; k++) for (let k2 = k + 1; k2 < routes.length && !improved; k2++) {
+      for (let a = 0; a < routes[k].length && !improved; a++) for (let b = 0; b < routes[k2].length; b++) {
+        const r1 = routes[k].slice(), r2 = routes[k2].slice();
+        [r1[a], r2[b]] = [r2[b], r1[a]];
+        const c1 = routeCost(ctx, drivers[k], r1); if (c1 === Infinity) continue;
+        const c2 = routeCost(ctx, drivers[k2], r2); if (c2 === Infinity) continue;
+        if (c1 + c2 < costs[k] + costs[k2] - 1e-6) { routes[k] = r1; routes[k2] = r2; costs[k] = c1; costs[k2] = c2; improved = true; break; }
+      }
+    }
+    // try to fit leftover stops after improvements
+    for (let u = sol.un.length - 1; u >= 0; u--) {
+      const i = sol.un[u]; let best = null;
+      for (let k = 0; k < routes.length; k++) for (let p = 0; p <= routes[k].length; p++) {
+        const nr = routes[k].slice(0, p).concat(i, routes[k].slice(p));
+        const c = routeCost(ctx, drivers[k], nr);
+        if (c !== Infinity && (!best || c - costs[k] < best.d)) best = { k, nr, c, d: c - costs[k] };
+      }
+      if (best) { routes[best.k] = best.nr; costs[best.k] = best.c; sol.un.splice(u, 1); improved = true; }
+    }
+  }
+  return sol;
+}
+
+function shuffle(a, rnd) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function seeded(seed) { return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+
+function optimise() {
+  const drivers = S.drivers.filter(d => d.active);
+  if (!drivers.length) { toast('Activate at least one driver first'); return; }
+  if (!S.stops.length) { toast('Add some stops first'); return; }
+  const ctx = makeCtx();
+  const all = ctx.stops.map((_, i) => i + 1);
+  const rnd = seeded(12345);
+  let best = null;
+  const t0 = performance.now();
+  for (let it = 0; it < Math.max(1, +S.settings.effort || 1); it++) {
+    let order;
+    if (it === 0) order = all.slice().sort((a, b) => (ctx.info[a].to - ctx.info[a].from) - (ctx.info[b].to - ctx.info[b].from)); // tightest windows first
+    else if (it === 1) order = all.slice().sort((a, b) => ctx.D[0][b] - ctx.D[0][a]);                                           // farthest first
+    else order = shuffle(all.slice(), rnd);
+    const sol = improve(ctx, drivers, construct(ctx, drivers, order));
+    const km = sol.costs.reduce((x, y) => x + y, 0);
+    if (!best || sol.un.length < best.un.length || (sol.un.length === best.un.length && km < best.km)) best = { ...sol, km };
+    if (performance.now() - t0 > 4000) break;
+  }
+  S.plan = {
+    routes: drivers.map((d, k) => ({ driverId: d.id, stopIds: best.routes[k].map(i => ctx.info[i].id) })),
+    unassigned: best.un.map(i => ctx.info[i].id),
+    baselineKm: baselineKm(ctx, drivers),
+    createdAt: Date.now(),
+  };
+  S.progress = {};
+  save(); renderAll(); fitMap();
+  const ms = Math.round(performance.now() - t0);
+  toast(`Optimised ${all.length - best.un.length} stops across ${drivers.length} drivers in ${ms} ms`);
+}
+
+// "manual" baseline: stops handed out in list order, round robin, visited in list order
+function baselineKm(ctx, drivers) {
+  const rs = drivers.map(() => []);
+  ctx.stops.forEach((_, i) => rs[i % drivers.length].push(i + 1));
+  return rs.reduce((sum, r) => { let p = 0, km = 0; for (const i of r) { km += ctx.D[p][i]; p = i; } return sum + km + ctx.D[p][0]; }, 0);
+}
+
+// Re-evaluate the current plan (after manual edits or settings change)
+function planDetails() {
+  if (!S.plan) return null;
+  const ctx = makeCtx();
+  const stopById = new Map(S.stops.map(s => [s.id, s]));
+  const routes = S.plan.routes.map(rt => {
+    const drv = S.drivers.find(d => d.id === rt.driverId);
+    if (!drv) return null;
+    rt.stopIds = rt.stopIds.filter(id => ctx.idx.has(id));
+    const r = rt.stopIds.map(id => ctx.idx.get(id));
+    const e = evalRoute(ctx, drv, r, true);
+    return { drv, rt, e, stops: rt.stopIds.map(id => stopById.get(id)) };
+  }).filter(Boolean);
+  const planned = new Set(S.plan.routes.flatMap(r => r.stopIds));
+  const unassigned = S.stops.filter(s => !planned.has(s.id));
+  return { routes, unassigned, ctx };
+}
+
+/* ============================================================
+   Map
+   ============================================================ */
+let map = null, layer = null, addMode = false;
+function initMap() {
+  if (typeof L === 'undefined') { $('#map').innerHTML = '<div class="map-fallback">Map library could not load (offline?). Planning still works.</div>'; return; }
+  map = L.map('map', { zoomControl: true }).setView([S.depot.lat, S.depot.lng], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+  map.on('click', e => {
+    if (!addMode) return;
+    const name = prompt('Customer name for the new stop?', 'New customer');
+    setAddMode(false);
+    if (!name) return;
+    S.stops.push({ id: uid('s'), name, address: `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`, lat: +e.latlng.lat.toFixed(6), lng: +e.latlng.lng.toFixed(6), from: '08:00', to: '16:00', service: 10, demand: 1, note: '' });
+    save(); renderAll(); toast('Stop added · press Optimise to include it in a route');
+  });
+}
+function setAddMode(on) { addMode = on; $('#mapHint').classList.toggle('show', on); if (map) map.getContainer().style.cursor = on ? 'crosshair' : ''; }
+
+function pin(color, label, done) {
+  return L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 26], popupAnchor: [0, -24],
+    html: `<div class="marker-pin ${done ? 'done' : ''}" style="background:${color}"><span>${label}</span></div>` });
+}
+
+function renderMap(det) {
+  if (!map) return;
+  layer.clearLayers();
+  L.marker([S.depot.lat, S.depot.lng], { icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: '<div class="depot-pin">⌂</div>' }), zIndexOffset: 1000 })
+    .bindPopup(`<b>${esc(S.depot.name)}</b><br>Depot`).addTo(layer);
+  const placed = new Set();
+  if (det) {
+    for (const { drv, stops, e } of det.routes) {
+      if (!stops.length) continue;
+      const line = [[S.depot.lat, S.depot.lng], ...stops.map(s => [s.lat, s.lng]), [S.depot.lat, S.depot.lng]];
+      L.polyline(line, { color: drv.color, weight: 4, opacity: .8 }).addTo(layer);
+      stops.forEach((s, n) => {
+        placed.add(s.id);
+        const leg = e.legs[n];
+        L.marker([s.lat, s.lng], { icon: pin(drv.color, n + 1, !!S.progress[s.id]) })
+          .bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.address)}<br>Driver: ${esc(drv.name)} · stop ${n + 1}<br>ETA <b>${toHHMM(leg.start)}</b> (window ${s.from}–${s.to})${s.note ? '<br><i>' + esc(s.note) + '</i>' : ''}`)
+          .addTo(layer);
+      });
+    }
+  }
+  for (const s of S.stops) if (!placed.has(s.id) && isFinite(s.lat))
+    L.marker([s.lat, s.lng], { icon: pin('#8b96a8', '•') }).bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.address)}<br><i>Not planned yet</i>`).addTo(layer);
+}
+function fitMap() {
+  if (!map) return;
+  const pts = [[S.depot.lat, S.depot.lng], ...S.stops.filter(s => isFinite(s.lat)).map(s => [s.lat, s.lng])];
+  map.fitBounds(L.latLngBounds(pts).pad(0.08));
+}
+
+/* ============================================================
+   Planner sidebar
+   ============================================================ */
+const openCards = new Set();
+function renderPlanner(det) {
+  const list = $('#routeList');
+  $('#kStops').textContent = S.stops.length;
+  if (!det) {
+    $('#kKm').textContent = '–'; $('#kTime').textContent = '–'; $('#kDone').textContent = '–';
+    $('#savings').classList.remove('show');
+    list.innerHTML = `<div class="empty">No plan yet.<br><br>You have <b>${S.stops.length}</b> stops and <b>${S.drivers.filter(d => d.active).length}</b> active drivers.<br>Press <b>⚡ Optimise routes</b> to build today's runs.</div>`;
+    return;
+  }
+  const totKm = det.routes.reduce((a, r) => a + r.e.km, 0);
+  const totDrive = totKm / S.settings.speed;
+  const plannedIds = det.routes.flatMap(r => r.rt.stopIds);
+  const done = plannedIds.filter(id => S.progress[id]).length;
+  $('#kKm').textContent = totKm.toFixed(0);
+  $('#kTime').textContent = totDrive.toFixed(1);
+  $('#kDone').textContent = plannedIds.length ? Math.round(done / plannedIds.length * 100) + '%' : '0%';
+  const base = S.plan.baselineKm;
+  if (base && base > totKm) {
+    $('#savings').innerHTML = `✓ <b>${(base - totKm).toFixed(0)} km saved</b> (${Math.round((1 - totKm / base) * 100)}%) compared with handing out stops in list order.`;
+    $('#savings').classList.add('show');
+  } else $('#savings').classList.remove('show');
+
+  let html = '';
+  if (det.unassigned.length) html += `<div class="unassigned"><b>${det.unassigned.length} stop(s) not planned</b>: ${det.unassigned.map(s => esc(s.name)).join(', ')}.<br><span style="font-size:12px">Their time window, vehicle capacity or the shift length could not fit. Try adding a driver, widening the window, or press Optimise again.</span></div>`;
+
+  const routeOpts = det.routes.map(r => `<option value="${r.drv.id}">${esc(r.drv.name)}</option>`).join('');
+  for (const { drv, rt, e, stops } of det.routes) {
+    const shift = toMin(drv.end) - toMin(drv.start);
+    const used = stops.length ? e.end - toMin(drv.start) : 0;
+    const pct = Math.min(100, used / shift * 100);
+    const doneN = stops.filter(s => S.progress[s.id]).length;
+    const status = e.overtime ? '<span class="tag bad">Overtime</span>' : e.overload ? '<span class="tag bad">Over capacity</span>' : e.legs.some(l => l.late) ? '<span class="tag warn">Late stops</span>' : stops.length ? '<span class="tag ok">OK</span>' : '<span class="tag grey">Empty</span>';
+    html += `<div class="route-card ${openCards.has(drv.id) ? 'open' : ''}" data-drv="${drv.id}">
+      <div class="route-head">
+        <span class="swatch" style="background:${drv.color}"></span>
+        <div><div class="name">${esc(drv.name)} ${status}</div><div style="font-size:12px;color:var(--muted)">${stops.length} stops · ${e.km.toFixed(1)} km · load ${e.load}/${drv.capacity}</div></div>
+        <div class="meta">${drv.start} → <b style="color:var(--ink)">${stops.length ? toHHMM(e.end) : drv.end}</b><br>${doneN}/${stops.length} done</div>
+      </div>
+      <div class="bar"><div style="width:${pct}%;background:${drv.color}"></div></div>
+      <div class="route-body">
+        <div class="depot-line">⌂ Leave ${esc(S.depot.name)} at ${drv.start}</div>
+        ${stops.map((s, n) => {
+          const l = e.legs[n], st = S.progress[s.id];
+          const flag = st === 'done' ? '<span class="tag ok">Done</span>' : st === 'failed' ? '<span class="tag bad">Failed</span>' : l.late ? '<span class="tag warn">Late</span>' : (l.start - l.arrive > 1 ? `<span class="tag grey">wait ${Math.round(l.start - l.arrive)}m</span>` : '');
+          return `<div class="stop-line">
+            <div class="num" style="background:${drv.color}">${n + 1}</div>
+            <div><div>${esc(s.name)} ${flag}</div><div class="t">${esc(s.address)} · ${s.from}–${s.to}</div>
+              <select data-move="${s.id}"><option value="">Move to…</option>${routeOpts.replace(`value="${drv.id}"`, `value="${drv.id}" disabled`)}<option value="__un">Unplan</option></select>
+              <button class="btn small" data-up="${s.id}" title="Earlier" ${n === 0 ? 'disabled' : ''}>↑</button><button class="btn small" data-down="${s.id}" title="Later" ${n === stops.length - 1 ? 'disabled' : ''}>↓</button>
+            </div>
+            <div class="eta">${toHHMM(l.start)}</div>
+          </div>`;
+        }).join('')}
+        <div class="depot-line">⌂ Back at depot ${stops.length ? toHHMM(e.end) : '–'} (shift ends ${drv.end})</div>
+      </div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+$('#routeList').addEventListener('click', e => {
+  const head = e.target.closest('.route-head');
+  if (head) { const id = head.parentElement.dataset.drv; openCards.has(id) ? openCards.delete(id) : openCards.add(id); head.parentElement.classList.toggle('open'); return; }
+  const up = e.target.dataset.up, down = e.target.dataset.down;
+  if (up || down) {
+    const id = up || down;
+    const rt = S.plan.routes.find(r => r.stopIds.includes(id)); const i = rt.stopIds.indexOf(id), j = up ? i - 1 : i + 1;
+    [rt.stopIds[i], rt.stopIds[j]] = [rt.stopIds[j], rt.stopIds[i]];
+    save(); renderAll();
+  }
+});
+$('#routeList').addEventListener('change', e => {
+  const id = e.target.dataset.move; if (!id || !e.target.value) return;
+  for (const r of S.plan.routes) r.stopIds = r.stopIds.filter(x => x !== id);
+  if (e.target.value !== '__un') {
+    const target = S.plan.routes.find(r => r.driverId === e.target.value);
+    target.stopIds.push(id);
+    // put it at the cheapest position in the target route
+    const ctx = makeCtx(), drv = S.drivers.find(d => d.id === target.driverId);
+    const r = target.stopIds.slice(0, -1).map(x => ctx.idx.get(x)), i = ctx.idx.get(id);
+    let best = null;
+    for (let p = 0; p <= r.length; p++) { const nr = r.slice(0, p).concat(i, r.slice(p)); const ev = evalRoute(ctx, drv, nr, true); const c = ev.km + (ev.overtime || ev.overload ? 1e4 : 0) + ev.legs.filter(l => l.late).length * 1e3; if (!best || c < best.c) best = { c, nr }; }
+    target.stopIds = best.nr.map(x => ctx.info[x].id);
+    openCards.add(target.driverId);
+  }
+  save(); renderAll(); toast('Route updated manually · ETAs recalculated');
+});
+
+/* ============================================================
+   Stops page
+   ============================================================ */
+function routeOf(id) {
+  if (!S.plan) return null;
+  const r = S.plan.routes.find(r => r.stopIds.includes(id));
+  return r ? S.drivers.find(d => d.id === r.driverId) : null;
+}
+function renderStops() {
+  $('#stopCount').textContent = S.stops.length;
+  $('#stopsBody').innerHTML = S.stops.map((s, n) => {
+    const d = routeOf(s.id);
+    return `<tr data-id="${s.id}">
+      <td>${n + 1}</td>
+      <td><input data-f="name" value="${esc(s.name)}"></td>
+      <td><input data-f="address" value="${esc(s.address)}"></td>
+      <td><input data-f="from" type="time" value="${s.from}"></td>
+      <td><input data-f="to" type="time" value="${s.to}"></td>
+      <td><input data-f="service" type="number" class="narrow" value="${s.service}"></td>
+      <td><input data-f="demand" type="number" class="narrow" value="${s.demand}"></td>
+      <td><input data-f="note" value="${esc(s.note)}"></td>
+      <td>${d ? `<span class="tag" style="background:${d.color}22;color:${d.color}">${esc(d.name)}</span>` : '<span class="tag grey">–</span>'}</td>
+      <td><button class="btn small danger" data-del="${s.id}">✕</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" class="empty">No stops yet</td></tr>';
+}
+$('#stopsBody').addEventListener('change', e => {
+  const tr = e.target.closest('tr'), f = e.target.dataset.f; if (!tr || !f) return;
+  const s = S.stops.find(x => x.id === tr.dataset.id);
+  s[f] = ['service', 'demand'].includes(f) ? +e.target.value : e.target.value;
+  save(); renderAll();
+});
+$('#stopsBody').addEventListener('click', e => {
+  const id = e.target.dataset.del; if (!id) return;
+  S.stops = S.stops.filter(s => s.id !== id);
+  if (S.plan) S.plan.routes.forEach(r => r.stopIds = r.stopIds.filter(x => x !== id));
+  save(); renderAll();
+});
+$('#stopForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  if (!f.lat || !f.lng) { toast('Coordinates needed: use "Find coordinates" or add the stop on the map'); return; }
+  S.stops.push({ id: uid('s'), name: f.name, address: f.address, lat: +f.lat, lng: +f.lng, from: f.from, to: f.to, service: +f.service, demand: +f.demand, note: f.note });
+  e.target.reset(); save(); renderAll(); toast('Stop added');
+});
+$('#btnGeocode').addEventListener('click', async () => {
+  const form = $('#stopForm'), q = form.address.value.trim();
+  if (!q) { toast('Type an address first'); return; }
+  try {
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    const j = await res.json();
+    if (!j.length) { toast('Address not found'); return; }
+    form.lat.value = (+j[0].lat).toFixed(6); form.lng.value = (+j[0].lon).toFixed(6);
+    toast('Found: ' + j[0].display_name.slice(0, 60));
+  } catch (err) { toast('Lookup failed (no internet?)'); }
+});
+
+// CSV
+function csvCell(v) { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function parseCSV(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ',' || c === ';') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+const COLS = ['name', 'address', 'lat', 'lng', 'from', 'to', 'service', 'demand', 'note'];
+$('#btnExport').addEventListener('click', () => {
+  const csv = [COLS.join(','), ...S.stops.map(s => COLS.map(c => csvCell(s[c])).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'stops.csv'; a.click();
+});
+$('#btnShowImport').addEventListener('click', () => { const b = $('#importBox'); b.style.display = b.style.display === 'none' ? 'block' : 'none'; });
+$('#importFile').addEventListener('change', async e => { const f = e.target.files[0]; if (f) $('#importText').value = await f.text(); });
+$('#btnImport').addEventListener('click', () => {
+  const rows = parseCSV($('#importText').value); if (!rows.length) return;
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  const hasHead = head.includes('name');
+  const cols = hasHead ? head : COLS;
+  let n = 0;
+  for (const r of rows.slice(hasHead ? 1 : 0)) {
+    const o = {}; cols.forEach((c, i) => o[c] = (r[i] ?? '').trim());
+    if (!o.name || !isFinite(parseFloat(o.lat)) || !isFinite(parseFloat(o.lng))) continue;
+    S.stops.push({ id: uid('s'), name: o.name, address: o.address || '', lat: +o.lat, lng: +o.lng, from: o.from || '08:00', to: o.to || '16:00', service: +o.service || 10, demand: +o.demand || 1, note: o.note || '' });
+    n++;
+  }
+  save(); renderAll(); toast(`Imported ${n} stops`); $('#importText').value = '';
+});
+$('#btnDeleteAll').addEventListener('click', () => {
+  if (!confirm('Delete all stops?')) return;
+  S.stops = []; S.plan = null; S.progress = {}; save(); renderAll();
+});
+
+/* ============================================================
+   Drivers page
+   ============================================================ */
+function renderDrivers() {
+  $('#driversGrid').innerHTML = S.drivers.map(d => `
+    <div class="driver-card" data-id="${d.id}">
+      <div class="top"><input type="color" data-f="color" value="${d.color}"><input type="text" data-f="name" value="${esc(d.name)}"></div>
+      <div class="fields">
+        <label>Shift start<input type="time" data-f="start" value="${d.start}"></label>
+        <label>Shift end<input type="time" data-f="end" value="${d.end}"></label>
+        <label>Capacity (units)<input type="number" data-f="capacity" value="${d.capacity}" min="1"></label>
+        <label>Stops today<input disabled value="${S.plan?.routes.find(r => r.driverId === d.id)?.stopIds.length ?? '–'}"></label>
+      </div>
+      <div class="foot">
+        <label class="switch"><input type="checkbox" data-f="active" ${d.active ? 'checked' : ''}> Active today</label>
+        <button class="btn small danger" data-del="${d.id}">Remove</button>
+      </div>
+    </div>`).join('');
+}
+$('#driversGrid').addEventListener('change', e => {
+  const card = e.target.closest('.driver-card'), f = e.target.dataset.f; if (!card || !f) return;
+  const d = S.drivers.find(x => x.id === card.dataset.id);
+  d[f] = f === 'active' ? e.target.checked : f === 'capacity' ? +e.target.value : e.target.value;
+  if (f === 'active' && S.plan) toast('Press Optimise to rebuild routes with the new driver set');
+  save(); renderAll();
+});
+$('#driversGrid').addEventListener('click', e => {
+  const id = e.target.dataset.del; if (!id) return;
+  if (!confirm('Remove this driver?')) return;
+  S.drivers = S.drivers.filter(d => d.id !== id);
+  if (S.plan) S.plan.routes = S.plan.routes.filter(r => r.driverId !== id);
+  save(); renderAll();
+});
+$('#btnAddDriver').addEventListener('click', () => {
+  S.drivers.push({ id: uid('d'), name: 'Driver ' + (S.drivers.length + 1), color: PALETTE[S.drivers.length % PALETTE.length], start: '07:00', end: '15:00', capacity: 30, active: true });
+  save(); renderAll();
+});
+
+/* ============================================================
+   Driver app
+   ============================================================ */
+function renderDriverApp(det) {
+  const sel = $('#driverSelect'), cur = sel.value;
+  sel.innerHTML = S.drivers.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  if (cur && S.drivers.some(d => d.id === cur)) sel.value = cur;
+  const drvId = sel.value;
+  const r = det?.routes.find(x => x.drv.id === drvId);
+  $('#phoneDate').textContent = new Date($('#planDate').value || Date.now()).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  if (!r || !r.stops.length) {
+    $('#phoneTitle').textContent = S.drivers.find(d => d.id === drvId)?.name + ' · no route';
+    $('#phoneProg').style.width = '0%'; $('#phoneProgTxt').textContent = '';
+    $('#phoneBody').innerHTML = '<div class="empty">No stops assigned.<br>Ask dispatch to optimise today\'s plan.</div>';
+    return;
+  }
+  const doneN = r.stops.filter(s => S.progress[s.id]).length;
+  $('#phoneTitle').textContent = `Hi ${r.drv.name} · ${r.stops.length} stops`;
+  $('#phoneProg').style.width = (doneN / r.stops.length * 100) + '%';
+  $('#phoneProgTxt').textContent = `${doneN} of ${r.stops.length} completed · ${r.e.km.toFixed(1)} km route`;
+  const firstOpen = r.stops.findIndex(s => !S.progress[s.id]);
+  $('#phoneBody').innerHTML = r.stops.map((s, n) => {
+    const st = S.progress[s.id], l = r.e.legs[n];
+    const cls = st === 'done' ? 'done' : st === 'failed' ? 'failed' : n === firstOpen ? 'current' : '';
+    const nav = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+    return `<div class="job ${cls}">
+      <div class="jt"><b>${n + 1}. ${esc(s.name)}</b><span class="tag ${st === 'done' ? 'ok' : st === 'failed' ? 'bad' : 'grey'}">${st === 'done' ? 'Delivered' : st === 'failed' ? 'Failed' : 'ETA ' + toHHMM(l.start)}</span></div>
+      <div class="addr">${esc(s.address)} · window ${s.from}–${s.to} · ${s.demand} units</div>
+      ${s.note ? `<div class="note">📝 ${esc(s.note)}</div>` : ''}
+      <div class="acts">
+        ${st ? `<button class="btn" data-undo="${s.id}">Undo</button>` : `
+        <a class="btn" href="${nav}" target="_blank" rel="noopener">🧭 Navigate</a>
+        <button class="btn go" data-done="${s.id}">✓ Delivered</button>
+        <button class="btn danger" data-fail="${s.id}">✕</button>`}
+      </div>
+    </div>`;
+  }).join('') + `<div class="empty" style="padding:12px">⌂ Return to ${esc(S.depot.name)} · ${toHHMM(r.e.end)}</div>`;
+}
+$('#driverSelect').addEventListener('change', () => renderDriverApp(planDetails()));
+$('#phoneBody').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.done) S.progress[t.dataset.done] = 'done';
+  else if (t.dataset.fail) S.progress[t.dataset.fail] = 'failed';
+  else if (t.dataset.undo) delete S.progress[t.dataset.undo];
+  else return;
+  save(); renderAll();
+});
+$('#btnResetProgress').addEventListener('click', () => { S.progress = {}; save(); renderAll(); });
+
+/* ============================================================
+   Settings
+   ============================================================ */
+function renderSettings() {
+  $('#sDepotName').value = S.depot.name; $('#sDepotLat').value = S.depot.lat; $('#sDepotLng').value = S.depot.lng;
+  $('#sSpeed').value = S.settings.speed; $('#sRoad').value = S.settings.road; $('#sEffort').value = S.settings.effort;
+}
+['#sDepotName', '#sDepotLat', '#sDepotLng', '#sSpeed', '#sRoad', '#sEffort'].forEach(id => $(id).addEventListener('change', () => {
+  S.depot = { name: $('#sDepotName').value, lat: +$('#sDepotLat').value, lng: +$('#sDepotLng').value };
+  S.settings = { speed: Math.max(5, +$('#sSpeed').value), road: Math.max(1, +$('#sRoad').value), effort: Math.max(1, +$('#sEffort').value) };
+  save(); renderAll(); toast('Settings saved');
+}));
+$('#btnLoadDemo').addEventListener('click', () => { if (!confirm('Replace current data with demo data?')) return; S = demoState(); save(); renderAll(); fitMap(); toast('Demo data loaded'); });
+$('#btnWipe').addEventListener('click', () => {
+  if (!confirm('Delete all stops, drivers and plans?')) return;
+  const keep = { depot: S.depot, settings: S.settings };
+  S = { ...keep, drivers: [], stops: [], plan: null, progress: {} }; save(); renderAll();
+});
+
+/* ============================================================
+   Wiring
+   ============================================================ */
+function renderAll() {
+  const det = planDetails();
+  renderPlanner(det); renderMap(det); renderStops(); renderDrivers(); renderDriverApp(det); renderSettings();
+}
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + b.dataset.view));
+  if (b.dataset.view === 'planner' && map) setTimeout(() => map.invalidateSize(), 0);
+}));
+$('#btnOptimise').addEventListener('click', () => { const b = $('#btnOptimise'); b.disabled = true; b.textContent = 'Optimising…'; setTimeout(() => { optimise(); b.disabled = false; b.textContent = '⚡ Optimise routes'; }, 20); });
+$('#btnAddOnMap').addEventListener('click', () => setAddMode(!addMode));
+$('#btnClearPlan').addEventListener('click', () => { S.plan = null; S.progress = {}; save(); renderAll(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setAddMode(false); });
+$('#planDate').valueAsDate = new Date();
+$('#planDate').addEventListener('change', () => renderDriverApp(planDetails()));
+
+load();
+initMap();
+renderAll();
+fitMap();
+</script>
+</body>
+</html>
