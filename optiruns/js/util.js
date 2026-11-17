@@ -40,3 +40,18 @@ function toast(msg) {
 
 const kr = n => Math.round(n).toLocaleString('da-DK') + ' kr';
 const num = (n, d = 0) => (+n).toLocaleString('da-DK', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+// In-page confirm / prompt (browser dialogs are blocked in some embeds)
+function ask(msg, opts = {}) {
+  return new Promise(res => {
+    const hasInput = opts.input !== undefined;
+    const d = document.createElement('div'); d.className = 'modal-bg';
+    d.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><p>${esc(msg)}</p>${hasInput ? `<input value="${esc(opts.input)}">` : ''}
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" data-x="0">Annuller</button><button class="btn primary" data-x="1">${esc(opts.ok || 'OK')}</button></div></div>`;
+    document.body.append(d);
+    const inp = d.querySelector('input'); (inp || d.querySelector('[data-x="1"]')).focus();
+    const done = ok => { d.remove(); res(ok ? (hasInput ? inp.value : true) : (hasInput ? null : false)); };
+    d.addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (b) done(b.dataset.x === '1'); else if (e.target === d) done(false); });
+    d.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); });
+  });
+}

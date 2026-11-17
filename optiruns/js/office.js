@@ -75,7 +75,7 @@ function replanVehicle(date, leg, vehicleId) {
 
 ACT.planDay = () => { const b = document.activeElement; if (b) b.disabled = true; toast('Optimerer…'); setTimeout(() => { toast(planDay(S.date)); render(); }, 30); };
 ACT.planLeg = () => { toast('Optimerer…'); setTimeout(() => { toast(planDay(S.date, [UI.leg])); render(); }, 30); };
-ACT.clearLeg = () => { if (!confirm('Slet planen for ' + LEGS[UI.leg].toLowerCase() + '?')) return; if (S.plans[S.date]) delete S.plans[S.date][UI.leg]; save(); render(); };
+ACT.clearLeg = async () => { if (!await ask('Slet planen for ' + LEGS[UI.leg].toLowerCase() + '?')) return; if (S.plans[S.date]) delete S.plans[S.date][UI.leg]; save(); render(); };
 ACT.leg = d => { UI.leg = d.leg; render(); };
 ACT.toggleRoute = d => { UI.open.has(d.id) ? UI.open.delete(d.id) : UI.open.add(d.id); render(); };
 ACT.delay = d => { addDelay(S.date, d.leg || UI.leg, d.id, +d.min, d.by || 'kørselskontoret'); toast(`Forsinkelse registreret, berørte borgere har fået besked`); render(); };
@@ -269,11 +269,13 @@ function renderPlan() {
 
 /* ---------- Map ---------- */
 
-let map = null, mapLayer = null, lastFit = '';
+let map = null, mapLayer = null, lastFit = '', tilesBlocked = false;
 function initMap() {
   if (typeof L === 'undefined') { $('#map').innerHTML = '<div class="map-fallback">Kortet kunne ikke indlæses (ingen internet?). Resten af systemet virker.</div>'; return; }
   map = L.map('map', { zoomControl: true }).setView([55.67, 12.43], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' })
+    .on('tileerror', () => { if (!tilesBlocked) { tilesBlocked = true; if (UI.view === 'plan') renderMap(dayModel(S.date, UI.leg)); } })
+    .addTo(map);
   mapLayer = L.layerGroup().addTo(map);
 }
 function renderMap(m) {
@@ -298,7 +300,8 @@ function renderMap(m) {
       .bindPopup(`<b>${esc(v.name)}</b> · ${esc(v.driver)}<br>${lv.onboard} borgere i bilen${lv.next ? '<br>Næste: ' + esc(citById(lv.next.req.citizenId).name) + ' ca. ' + hm(lv.next.eta) : ''}`).addTo(mapLayer);
   }
   for (const r of m.unplanned) { const c = citById(r.citizenId); pts.push([c.lat, c.lng]); L.marker([c.lat, c.lng], { icon: icon('<div class="pin" style="background:#8b95a7">!</div>', 24) }).bindPopup(`<b>${esc(c.name)}</b><br>Ikke planlagt`).addTo(mapLayer); }
-  $('#mapLegend').innerHTML = `${LEG_LONG[m.leg]} · tal = rækkefølge på ruten · 🚐 = køretøj kl. ${hm(S.clock)}`;
+  $('#mapLegend').innerHTML = `${LEG_LONG[m.leg]} · tal = rækkefølge på ruten · 🚐 = køretøj kl. ${hm(S.clock)}` +
+    (tilesBlocked ? '<br><span class="muted">Kortbaggrunden kan ikke hentes her. Åbn index.html lokalt for at se vejkortet.</span>' : '');
   const key = m.date + m.leg + (m.plan ? 1 : 0);
   if (key !== lastFit && pts.length) { map.fitBounds(L.latLngBounds(pts).pad(0.06)); lastFit = key; }
 }
@@ -352,7 +355,7 @@ CHG.cit = el => { const c = citById(el.dataset.id); c[el.dataset.f] = el.value; 
 CHG.citFlag = el => { const c = citById(el.dataset.id); c[el.dataset.f] = el.checked; save(); toast('Gemt · ændringen gælder ved næste optimering'); };
 CHG.vis = el => { const v = S.visitations.find(x => x.id === el.dataset.id); v[el.dataset.f] = el.dataset.f === 'maxRide' ? +el.value : el.value; save(); toast('Bevilling opdateret'); };
 CHG.visDay = el => { const v = S.visitations.find(x => x.id === el.dataset.id), d = +el.dataset.day; v.days = el.checked ? [...new Set([...v.days, d])].sort() : v.days.filter(x => x !== d); save(); renderCitizens(); };
-ACT.delCitizen = d => { if (!confirm('Slet borger og bevilling?')) return; S.citizens = S.citizens.filter(c => c.id !== d.id); S.visitations = S.visitations.filter(v => v.citizenId !== d.id); save(); render(); };
+ACT.delCitizen = async d => { if (!await ask('Slet borger og bevilling?')) return; S.citizens = S.citizens.filter(c => c.id !== d.id); S.visitations = S.visitations.filter(v => v.citizenId !== d.id); save(); render(); };
 ACT.addCitizen = () => {
   const f = $('#citForm'), g = n => f.querySelector(`[name=${n}]`), val = n => g(n).value.trim();
   if (!val('name')) return toast('Skriv et navn');
@@ -423,8 +426,8 @@ CHG.veh = el => { const v = vehById(el.dataset.id), f = el.dataset.f; v[f] = ['s
 CHG.vehActive = el => setVehicleActive(el.dataset.id, el.checked, 'kørselskontoret');
 ACT.addOp = () => { S.operators.push({ id: uid('o'), name: 'Ny vognmand', contact: '', address: '', lat: 55.67, lng: 12.43 }); save(); render(); };
 ACT.addVeh = d => { S.vehicles.push({ id: uid('v'), operatorId: d.id, name: 'Nyt køretøj', type: 'Minibus', seats: 8, wc: 1, driver: '', phone: '', start: '07:00', end: '17:00', active: true, color: '#' + Math.floor(Math.random() * 0xaaaaaa).toString(16).padStart(6, '0') }); save(); render(); };
-ACT.delVeh = d => {
-  if (!confirm('Slet køretøj? Ture på køretøjet bliver uplanlagte.')) return;
+ACT.delVeh = async d => {
+  if (!await ask('Slet køretøj? Ture på køretøjet bliver uplanlagte.')) return;
   S.vehicles = S.vehicles.filter(v => v.id !== d.id);
   for (const day of Object.values(S.plans)) for (const p of Object.values(day)) p.routes = p.routes.filter(r => r.vehicleId !== d.id);
   save(); render();
@@ -502,8 +505,8 @@ ACT.runScen = () => {
   }, 30);
 };
 ACT.clearScen = () => { UI.scen = []; renderScenarios(); };
-ACT.applyScen = d => {
-  const s = UI.scen[+d.i]; if (!confirm(`Erstat planen for ${LEGS[s.leg].toLowerCase()} med "${s.name}"? Regler tjekkes igen med de rigtige bevillinger.`)) return;
+ACT.applyScen = async d => {
+  const s = UI.scen[+d.i]; if (!await ask(`Erstat planen for ${LEGS[s.leg].toLowerCase()} med "${s.name}"? Regler tjekkes igen med de rigtige bevillinger.`)) return;
   setPlan(S.date, s.leg, JSON.parse(JSON.stringify(s.plan)));
   addEvent({ type: 'Plan', level: 'info', text: `Scenariet "${s.name}" er taget i brug for ${LEGS[s.leg].toLowerCase()}.` });
   save(); UI.leg = s.leg; showView('plan');
@@ -534,4 +537,4 @@ function renderSettings() {
 CHG.setting = el => { S.settings[el.dataset.f] = +el.value; save(); toast('Gemt'); };
 CHG.autoRun = el => { S.settings.autoRun = el.checked; save(); };
 ACT.resetDay = () => { delete S.status[S.date]; delete S.delays[S.date]; save(); toast('Status nulstillet'); render(); };
-ACT.resetDemo = () => { if (!confirm('Slet alle ændringer og gendan demodata?')) return; localStorage.removeItem(STORE_KEY); location.reload(); };
+ACT.resetDemo = async () => { if (!await ask('Slet alle ændringer og gendan demodata?')) return; localStorage.removeItem(STORE_KEY); location.reload(); };

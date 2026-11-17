@@ -56,13 +56,13 @@ function renderInstPortal() {
     </div></div></div>`;
 }
 CHG.instSel = el => { UI.instId = el.value; render(); };
-ACT.instAbsent = d => { const r = prompt('Årsag (valgfri)', 'Syg'); if (r === null) return; cancelTrip(d.vid, S.date, d.leg === 'ud' ? 'both' : d.leg, 'Institution', r); save(); toast('Fravær meldt · kørselskontor og chauffør har fået besked'); render(); };
+ACT.instAbsent = async d => { const r = await ask('Årsag til fravær (valgfri)', { input: 'Syg' }); if (r === null) return; cancelTrip(d.vid, S.date, d.leg === 'ud' ? 'both' : d.leg, 'Institution', r); save(); toast('Fravær meldt · kørselskontor og chauffør har fået besked'); render(); };
 ACT.instUndo = d => { undoCancel(d.vid, S.date, d.leg); save(); render(); };
-ACT.instClosed = () => {
+ACT.instClosed = async () => {
   const inst = instById(UI.instId);
   const vids = S.visitations.filter(v => v.institutionId === inst.id && v.days.includes(weekday(S.date))).map(v => v.id).filter(id => !isCancelled(id, S.date, 'ud'));
   if (!vids.length) return toast('Ingen kørsler at aflyse');
-  if (!confirm(`Aflys alle ${vids.length} kørsler til ${inst.name} i dag?`)) return;
+  if (!await ask(`Aflys alle ${vids.length} kørsler til ${inst.name} i dag?`)) return;
   vids.forEach(id => cancelTrip(id, S.date, 'both', 'Institution', 'Lukkedag'));
   addEvent({ type: 'Lukkedag', level: 'warn', instId: inst.id, text: `${inst.name} har meldt lukkedag. ${vids.length} borgere er afbestilt ud og hjem. Overvej at optimere dagen igen for at frigøre køretøjer.` });
   save(); toast('Lukkedag meldt'); render();
@@ -113,7 +113,7 @@ function renderOpPortal() {
     ${cards}</div>`;
 }
 CHG.opSel = el => { UI.opId = el.value; render(); };
-ACT.opVehOff = d => { if (!confirm('Meld køretøjet ude af drift? Kørselskontoret får besked og flytter turene.')) return; setVehicleActive(d.id, false, 'vognmanden'); toast('Kørselskontoret har fået besked'); };
+ACT.opVehOff = async d => { if (!await ask('Meld køretøjet ude af drift? Kørselskontoret får besked og flytter turene.')) return; setVehicleActive(d.id, false, 'vognmanden'); toast('Kørselskontoret har fået besked'); };
 ACT.opVehOn = d => setVehicleActive(d.id, true, 'vognmanden');
 ACT.opAccept = () => { (S.accepted[S.date] ||= {})[UI.opId] = S.clock; addEvent({ type: 'Bekræftet', level: 'info', text: `${opById(UI.opId).name} har bekræftet dagens kørsler.` }); save(); render(); };
 
@@ -180,10 +180,10 @@ function citizenText(e, c) {
 }
 CHG.citSel = el => { UI.citizenId = el.value; render(); };
 ACT.citTab = d => { UI.citTab = d.t; render(); };
-ACT.citCancel = d => {
+ACT.citCancel = async d => {
   const t = citizenTrips(UI.citizenId, d.d).find(t => t.vid === d.vid && t.leg === d.leg);
-  if (d.d === S.date) { const st = tripStatus(d.d, t); if (st.f && st.f.P.eta - S.clock < 60 && !confirm('Der er under en time til afhentning. Afbestil alligevel?')) return; }
-  else if (!confirm(`Afbestil ${t.leg === 'ud' ? 'udkørsel' : 'hjemkørsel'} ${fmtDate(d.d)}?`)) return;
+  if (d.d === S.date) { const st = tripStatus(d.d, t); if (st.f && st.f.P.eta - S.clock < 60 && !await ask('Der er under en time til afhentning. Afbestil alligevel?')) return; }
+  else if (!await ask(`Afbestil ${t.leg === 'ud' ? 'udkørsel' : 'hjemkørsel'} ${fmtDate(d.d)}?`)) return;
   cancelTrip(d.vid, d.d, d.leg, 'Borger', ''); save(); toast('Kørslen er afbestilt'); render();
 };
 ACT.citUndo = d => { undoCancel(d.vid, d.d, d.leg); save(); toast('Kørslen er bestilt igen'); render(); };
@@ -234,8 +234,8 @@ CHG.drvSel = el => { UI.vehicleId = el.value; render(); };
 ACT.drvLeg = d => { UI.driverLeg = d.l; render(); };
 ACT.drvDone = d => { setStatus(S.date, d.req, { [d.k]: 'done', [d.k + 't']: S.clock }); save(); render(); };
 ACT.drvUndo = d => { setStatus(S.date, d.req, { [d.k]: null, [d.k + 't']: null }); save(); render(); };
-ACT.drvNoShow = d => {
-  if (!confirm('Registrér at borgeren ikke var klar? Kørselskontor, pårørende og institution får besked.')) return;
+ACT.drvNoShow = async d => {
+  if (!await ask('Registrér at borgeren ikke var klar? Kørselskontor, pårørende og institution får besked.')) return;
   setStatus(S.date, d.req, { P: 'noshow', Pt: S.clock });
   const leg = d.req.split(':').pop(), m = dayModel(S.date, leg), r = m.reqs[m.c.idx.get(d.req)], c = citById(r.citizenId);
   addEvent({ type: 'Ikke mødt', level: 'warn', citizenIds: [c.id], instId: r.instId, vehicleId: UI.vehicleId,
